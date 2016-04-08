@@ -43,8 +43,6 @@ use POSIX ":sys_wait_h";
 use Sys::Hostname;
 use Neos;;
 
-Neos::load_config($Neos::config_dump);
-
 sub main {
     # Do not run anything if not run on the firstnode.
     return unless (Neos::first_node () eq hostname);
@@ -76,13 +74,13 @@ sub main {
         Neos::print_job_infos (Neos::get_param('password'));
     }
 
-    open STDOUT, '>>$x_logfile';
+    open STDOUT, ">>$x_logfile";
     open STDERR, '>&STDOUT';
 
     # Xvfb
     my $x_cmd = sprintf ("Xvfb :%s -once -screen 0 %sx24+32 -auth %s",
                          $display,
-                         Neos::get_param('resolution'),
+                         Neos::get_resolution(),
                          Neos::get_param('xauthfile')
         );
     my $x_pid;
@@ -90,7 +88,11 @@ sub main {
         push(@pids, $x_pid);
         Neos::set_param('x_pid', $x_pid);
     } else {
-        exec $x_cmd unless ($display eq 0);
+        if ($display eq 0) {
+            system(sprintf("xrandr -d :0 --fb %s", Neos::get_resolution()));
+        } else {
+            exec $x_cmd;
+        }
         do {
             sleep (1);
         } while (1 eq 1);
@@ -112,7 +114,7 @@ sub main {
 
     # Run x11vnc (with appropriate parameters)
     my $vnc_cmd = sprintf (Neos::get_param('cmd'),
-                           Neos::get_param('resolution'),
+                           Neos::get_resolution(),
                            $display,
                            Neos::get_rfbport ()
         );

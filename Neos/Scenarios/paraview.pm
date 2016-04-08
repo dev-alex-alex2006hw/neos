@@ -43,12 +43,16 @@ use POSIX ":sys_wait_h";
 use Sys::Hostname;
 use Neos;;
 
-Neos::load_config();
-
 # Job parameters
 my $firstnode = Neos::first_node ();
 
 sub main {
+    if (Neos::get_job_detail('shared') eq 0) {
+        system(sprintf("xrandr -d :0 --fb %s",
+                       Neos::get_resolution(Neos::get_param('paraview_resolution'))
+                      ));
+    }
+
     return unless ($firstnode eq hostname);
 
     my $x_logfile = Neos::get_param('x_logfile');
@@ -76,13 +80,13 @@ sub main {
         );
     system($xauth_cmd);
 
-    open STDOUT, '>$x_logfile';
+    open STDOUT, ">$x_logfile";
     open STDERR, '>&STDOUT';
 
     # Xvfb
     my $x_cmd = sprintf ("Xvfb :%s -once -screen 0 %sx24+32 -auth %s",
                          $display,
-                         Neos::get_param('resolution'),
+                         Neos::get_resolution(Neos::get_param('paraview_resolution')),
                          $xauth_file
         );
     my $x_pid;
@@ -96,11 +100,23 @@ sub main {
         } while (1 eq 1);
     }
 
+    # Window manager (to workaround a Paraview bug. See https://github.com/edf-hpc/neos/issues/4)
+    my $wm_cmd = sprintf ("%s", Neos::get_param('default_window_manager'));
+    my $wm_pid;
+    if ($wm_pid = fork) {
+        push(@pids, $wm_pid);
+        Neos::set_param('wm_pid', $wm_pid);
+    } else {
+        $ENV{DISPLAY} = sprintf (":%s", $display);
+        $ENV{XAUTHORITY} = $xauth_file;
+        exec $wm_cmd;
+    }
+
     # Run pvserver command
     my $cmd = sprintf("mpirun -x DISPLAY=:%s %s %s/bin/pvserver --connect-id=%s -rc -ch=%s",
                       $display,
                       $vglrun,
-                      Neos::get_param('paraview_path'),
+                      Neos::get_param1('paraview_path'),
                       $display,
                       Neos::get_ip_pvclient ()
 	);
@@ -129,7 +145,7 @@ sub main {
 
 sub clean {
     use Scalar::Util qw(looks_like_number);
-    my @pids = (Neos::get_param('pvserver_pid'), Neos::get_param('x_pid'));
+    my @pids = (Neos::get_param('pvserver_pid'), Neos::get_param('x_pid'), Neos::get_param('wm_pid'));
     foreach my $pid (@pids) {
         kill 'TERM', $pid if (looks_like_number($pid));
     }

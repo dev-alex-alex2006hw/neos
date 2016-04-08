@@ -54,8 +54,6 @@ use File::Slurp qw(read_file write_file); # libfile-slurp-perl
 
 use Data::Dumper;
 
-my $param1 = "";
-
 # Load the Switch..Case construct
 use Switch;
 
@@ -139,8 +137,8 @@ sub get_param {
 
 sub get_param1 {
     my ($default) = @_;
-    if ($param1 ne "") {
-	return $param1;
+    if (exists($config{param1}) && $config{param1} ne "") {
+	return $config{param1};
     } else {
 	return get_param($default);
     }
@@ -154,6 +152,17 @@ sub set_param {
 # Resolution
 sub get_default_resolution {
     return get_param('default_resolution');
+}
+
+sub get_resolution {
+    my ($default) = @_;
+    $default = get_default_resolution() if ($default eq "");
+    my $res = get_param('resolution');
+    if ($res eq "") {
+        return $default;
+    } else {
+        return $res;
+    }
 }
 
 # Scenario actions: main, srun, task, epilog
@@ -282,7 +291,7 @@ sub get_ip_pvclient {
 my $magic_number = 59530;
 
 sub get_rfbport {
-    return ($ENV{'SLURM_JOB_ID'} % $magic_number + 1);
+    return ($ENV{'SLURM_JOB_ID'} % $magic_number + 1024);
 }
 
 sub get_display {
